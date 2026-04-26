@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FamilyAttn | AI Storyweaver</title>
+    
+    <!-- Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Ambient Background -->
+    <div class="ambient-background">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+        <div class="glow-orb orb-3"></div>
+        <div class="noise-overlay"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Sidebar Controls -->
+        <aside class="sidebar glass-panel">
+            <header class="brand">
+                <div class="logo-icon">
+                    <i data-lucide="sparkles"></i>
+                </div>
+                <div>
+                    <h1>FamilyAttn</h1>
+                    <span class="badge">NanoGPT Engine</span>
+                </div>
+            </header>
+
+            <div class="control-group">
+                <label for="prompt">Story Prompt</label>
+                <div class="textarea-wrapper">
+                    <textarea id="prompt" placeholder="Once upon a time, in a neon-lit city..." rows="4"></textarea>
+                    <div class="focus-ring"></div>
+                </div>
+            </div>
+
+            <div class="sliders">
+                <div class="slider-group">
+                    <div class="slider-header">
+                        <label for="temperature">Creativity</label>
+                        <span class="value-display" id="temp-val">0.8</span>
+                    </div>
+                    <input type="range" id="temperature" min="0.1" max="1.5" step="0.1" value="0.8">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-header">
+                        <label for="tokens">Max Length</label>
+                        <span class="value-display" id="tokens-val">150</span>
+                    </div>
+                    <input type="range" id="tokens" min="20" max="300" step="10" value="150">
+                </div>
+            </div>
+
+            <button id="generate-btn" class="btn-primary">
+                <span class="btn-content">
+                    <i data-lucide="wand-2"></i>
+                    Weave Story
+                </span>
+                <div class="loader-ring"></div>
+            </button>
+        </aside>
+
+        <!-- Main Canvas -->
+        <main class="canvas glass-panel">
+            <div class="canvas-header">
+                <h2>Generated Manuscript</h2>
+                <div class="actions">
+                    <button class="icon-btn" title="Copy to clipboard" id="copy-btn">
+                        <i data-lucide="copy"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="story-container">
+                <div id="empty-state" class="empty-state">
+                    <i data-lucide="feather" class="empty-icon"></i>
+                    <p>The parchment awaits your prompt...</p>
+                </div>
+                <div id="story-output" class="story-output" style="display: none;"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>lucide.createIcons();</script>
+    <script src="app.js"></script>
+</body>
+</html>
