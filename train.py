@@ -152,7 +152,7 @@ def evaluate(model, loader, device, max_batches: int = 50) -> float:
             break
         x, y = x.to(device), y.to(device)
         with autocast(device_type="cuda", enabled=(device == "cuda")):
-            logits, _ = model(x)
+            logits, _ = model(x, compute_aux=False)
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
         total += loss.item()
         count += 1
@@ -305,15 +305,20 @@ def train(args):
             x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
 
             # ── Forward (AMP) ─────────────────────────────────────────────────
+            compute_iid = (micro_step == args.grad_accum - 1)
             with autocast(device_type=device, dtype=pt_dtype, enabled=(device != "cpu")):
-                logits, aux = model(x)
+                logits, aux = model(x, compute_aux=compute_iid)
                 loss_task   = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
 
-                gamma       = min(1.0, step / args.iid_warmup)
-                loss_iid, mean_div, mean_stab = compute_identity_loss(aux, gamma)
-                loss        = (loss_task + loss_iid) / args.grad_accum
+                if compute_iid:
+                    gamma       = min(1.0, step / args.iid_warmup)
+                    loss_iid, mean_div, mean_stab = compute_identity_loss(aux, gamma)
+                    loss        = (loss_task / args.grad_accum) + loss_iid
+                    total_unscaled_loss = loss_task.item() + loss_iid.item()
+                else:
+                    loss        = loss_task / args.grad_accum
             
-            accum_loss += loss.item()
+            accum_loss += loss_task.item() / args.grad_accum
             
             if device == "cpu":
                 loss.backward()
@@ -342,7 +347,7 @@ def train(args):
 
             log = {
                 "step":       step,
-                "loss":       round(loss.item(), 5),
+                "loss":       round(total_unscaled_loss, 5),
                 "loss_task":  round(loss_task.item(), 5),
                 "loss_iid":   round(loss_iid.item(), 5),
                 "div":        round(mean_div.item(), 5),

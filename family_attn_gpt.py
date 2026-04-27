@@ -139,7 +139,7 @@ class FamilyAttention(nn.Module):
         # Mix: for each head i,  mix_i = sum_j e_ij * h_j
         # h : (B, N, H, d_head) → treat H as "sequence" for batched matmul
         # mixed[b, n, i, :] = sum_j e[i,j] * h[b, n, j, :]
-        mixed = torch.einsum("ij, bnj d -> bni d", e_mat, h)  # (B, N, H, d_head)
+        mixed = torch.matmul(e_mat, h)  # (B, N, H, d_head)
 
         # Gated residual
         gate_val = torch.sigmoid(self.lateral_gate)            # small at init
@@ -223,7 +223,7 @@ class FamilyAttention(nn.Module):
     # ── Main forward ──────────────────────────────────────────────────────────
 
     def forward(
-        self, x: torch.Tensor
+        self, x: torch.Tensor, compute_aux: bool = True
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         """
         x : (B, N, d_model)
@@ -267,14 +267,8 @@ class FamilyAttention(nn.Module):
         h = self._lateral_mix(h)                   # (B, N, H, d_head)
 
         # ── Fingerprint  (Prompt 5) ──────────────────────────────────────────
-        phi  = self._fingerprint(h)                # (B, H, d_phi)
-
         # ── Stability  (Prompt 6) ────────────────────────────────────────────
-        stab = self._stability(phi)                # (H,)
-
         # ── JS Divergence  (Prompt 7) ────────────────────────────────────────
-        div  = self._js_divergence(phi)            # (H,)
-
         # ── Final projection  (Prompt 8) ─────────────────────────────────────
         h_cat = h.reshape(B, N, H * d_h)          # (B, N, d_model)
         out   = self.resid_drop(self.proj(h_cat)) # (B, N, d_model)
@@ -282,10 +276,24 @@ class FamilyAttention(nn.Module):
         info = {
             "head_out": h,                         # (B, N, H, d_head)
             "id_vecs":  self._normalised_id_vecs(),# (H, d_id)
-            "phi":      phi,                       # (B, H, d_phi)
-            "div":      div,                       # (H,)
-            "stab":     stab,                      # (H,)
         }
+
+        if compute_aux:
+            phi  = self._fingerprint(h)                # (B, H, d_phi)
+            stab = self._stability(phi)                # (H,)
+            div  = self._js_divergence(phi)            # (H,)
+            
+            info.update({
+                "phi":  phi,
+                "div":  div,
+                "stab": stab,
+            })
+        else:
+            info.update({
+                "phi":  None,
+                "div":  torch.zeros(self.H, device=x.device),
+                "stab": torch.zeros(self.H, device=x.device),
+            })
 
         return out, info
 
@@ -325,9 +333,9 @@ class TransformerBlock(nn.Module):
         self.mlp  = MLP(cfg)
 
     def forward(
-        self, x: torch.Tensor
+        self, x: torch.Tensor, compute_aux: bool = True
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-        attn_out, info = self.attn(self.ln1(x))
+        attn_out, info = self.attn(self.ln1(x), compute_aux=compute_aux)
         x = x + attn_out
         x = x + self.mlp(self.ln2(x))
         return x, info
@@ -370,13 +378,13 @@ class FamilyAttnGPT(nn.Module):
                 nn.init.normal_(m.weight, std=0.02)
 
     def forward(
-        self, x: torch.Tensor
+        self, x: torch.Tensor, compute_aux: bool = True
     ) -> Tuple[torch.Tensor, list]:
         """x : (B, N)  →  logits (B, N, vocab_size), aux list"""
         h   = self.embed(x)
         aux = []
         for block in self.blocks:
-            h, info = block(h)
+            h, info = block(h, compute_aux=compute_aux)
             aux.append(info)
         logits = self.head(self.ln_f(h))
         return logits, aux
